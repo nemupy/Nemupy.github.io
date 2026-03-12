@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>map tester</title>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .controls {
+            position: absolute; top: 10; left: 10; z-index: 1;
+            background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <label><input type="checkbox" id="hide-disputed" checked> 特定の地名を消す </label><br>
+    <label><input type="checkbox" id="hide-minor-labels"> 主要な地名以外を消す</label>
+</div>
+<div id="map"></div>
+
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [131.866, 37.243],
+        zoom: 10
+    });
+
+    const labelLayers = ['place_label', 'poi_label', 'natural_label', 'water_name'];
+
+    function updateFilters() {
+        const isHideDisputed = document.getElementById('hide-disputed').checked;
+        const isHideMinor = document.getElementById('hide-minor-labels').checked;
+
+        labelLayers.forEach(layerId => {
+            if (!map.getLayer(layerId)) return;
+
+            let filters = ['all'];
+
+            if (isHideDisputed) {
+                const forbidden = ['Dokdo', '독도', 'Liancourt Rocks'];
+                filters.push(['!', ['in', ['get', 'name'], ['literal', forbidden]]]);
+            }
+
+            if (isHideMinor) {
+                filters.push(['<=', ['get', 'rank'], 3]);
+            }
+
+            map.setFilter(layerId, filters);
+        });
+    }
+
+    map.on('load', updateFilters);
+    document.getElementById('hide-disputed').addEventListener('change', updateFilters);
+    document.getElementById('hide-minor-labels').addEventListener('change', updateFilters);
+</script>
+</body>
+</html>
