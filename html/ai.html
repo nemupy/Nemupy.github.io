@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>OFM 全レイヤー完全抽出</title>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; display: flex; font-family: monospace; }
+        #map { width: 50%; height: 100vh; }
+        #list-container { width: 50%; height: 100vh; overflow-y: auto; background: #1e1e1e; color: #adadad; padding: 20px; box-sizing: border-box; }
+        h2 { color: #569cd6; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .layer-id { cursor: pointer; padding: 2px 0; }
+        .layer-id:hover { color: #fff; background: #333; }
+        .count { color: #ce9178; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="list-container">
+    <h2>All Layer IDs in this Style</h2>
+    <div id="count-info" class="count">Loading layers...</div>
+    <div id="layer-list"></div>
+</div>
+
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [139.76, 35.68],
+        zoom: 10
+    });
+
+    map.on('style.load', () => {
+        const layers = map.getStyle().layers;
+        const listDiv = document.getElementById('layer-list');
+        const countDiv = document.getElementById('count-info');
+
+        countDiv.innerText = `Total Layers Found: ${layers.length}`;
+
+        // 全レイヤーIDをアルファベット順にソートして表示
+        const layerIds = layers.map(l => l.id).sort();
+        
+        listDiv.innerHTML = layerIds.map(id => {
+            // 地名に関連しそうなものに色を付ける
+            const isLabel = /label|name|place|poi/i.test(id);
+            const color = isLabel ? 'color: #dcdcaa; font-weight: bold;' : '';
+            return `<div class="layer-id" style="${color}" onclick="console.log(map.getLayer('${id}'))">${id}</div>`;
+        }).join('');
+
+        console.log("=== FULL LAYER LIST ===");
+        console.table(layers.map(l => ({id: l.id, type: l.type})));
+    });
+</script>
+</body>
+</html>
