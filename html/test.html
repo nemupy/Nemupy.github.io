@@ -6,19 +6,26 @@
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .controls {
-            position: absolute; top: 10; left: 10; z-index: 1;
-            background: white; padding: 10px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        .info-panel {
+            position: absolute; top: 10px; left: 10px; z-index: 1;
+            background: rgba(255, 255, 255, 0.9); padding: 15px;
+            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-width: 350px; max-height: 80vh; overflow-y: auto;
         }
+        pre { background: #eee; padding: 5px; font-size: 12px; white-space: pre-wrap; }
+        .hint { color: #666; font-size: 12px; }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <label><input type="checkbox" id="hide-disputed" checked> 特定の地名を消す </label><br>
-    <label><input type="checkbox" id="hide-minor-labels"> 主要な地名以外を消す</label>
+<div class="info-panel">
+    <div id="result">
+        <strong>レイヤーID:</strong> <span id="layer-id">---</span><br>
+        <strong>プロパティ:</strong>
+        <pre id="properties">{}</pre>
+    </div>
 </div>
 <div id="map"></div>
 
@@ -30,33 +37,35 @@
         zoom: 10
     });
 
-    const labelLayers = ['place_label', 'poi_label', 'natural_label', 'water_name'];
+    map.on('load', () => {
+        console.log("Map loaded. 全レイヤーリスト:", map.getStyle().layers.map(l => l.id));
+    });
 
-    function updateFilters() {
-        const isHideDisputed = document.getElementById('hide-disputed').checked;
-        const isHideMinor = document.getElementById('hide-minor-labels').checked;
+    map.on('click', (e) => {
+        const features = map.queryRenderedFeatures(e.point);
 
-        labelLayers.forEach(layerId => {
-            if (!map.getLayer(layerId)) return;
+        if (features.length > 0) {
+            const f = features[0];
+            
+            document.getElementById('layer-id').innerText = f.layer.id;
+            document.getElementById('properties').innerText = JSON.stringify(f.properties, null, 2);
 
-            let filters = ['all'];
+            console.log("=== Clicked Feature ===");
+            console.log("Layer ID:", f.layer.id);
+            console.log("Source Layer:", f.sourceLayer);
+            console.log("Properties:", f.properties);
+        } else {
+            document.getElementById('layer-id').innerText = "なし";
+            document.getElementById('properties').innerText = "{}";
+        }
+    });
 
-            if (isHideDisputed) {
-                const forbidden = ['Dokdo', '독도', 'Liancourt Rocks'];
-                filters.push(['!', ['in', ['get', 'name'], ['literal', forbidden]]]);
-            }
-
-            if (isHideMinor) {
-                filters.push(['<=', ['get', 'rank'], 3]);
-            }
-
-            map.setFilter(layerId, filters);
-        });
-    }
-
-    map.on('load', updateFilters);
-    document.getElementById('hide-disputed').addEventListener('change', updateFilters);
-    document.getElementById('hide-minor-labels').addEventListener('change', updateFilters);
+    map.on('mouseenter', (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', () => {
+        map.getCanvas().style.cursor = '';
+    });
 </script>
 </body>
 </html>
