@@ -2,56 +2,93 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>OFM 全レイヤー完全抽出</title>
+    <title>OFM レイヤー個別スイッチ</title>
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; display: flex; font-family: monospace; }
-        #map { width: 50%; height: 100vh; }
-        #list-container { width: 50%; height: 100vh; overflow-y: auto; background: #1e1e1e; color: #adadad; padding: 20px; box-sizing: border-box; }
-        h2 { color: #569cd6; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .layer-id { cursor: pointer; padding: 2px 0; }
-        .layer-id:hover { color: #fff; background: #333; }
-        .count { color: #ce9178; margin-bottom: 20px; }
+        body { margin: 0; display: flex; font-family: sans-serif; height: 100vh; overflow: hidden; }
+        #map { flex-grow: 1; height: 100%; }
+        .sidebar {
+            width: 350px; background: #222; color: #fff;
+            display: flex; flex-direction: column; border-right: 1px solid #444;
+        }
+        .header { padding: 15px; background: #333; border-bottom: 1px solid #444; }
+        .layer-controls { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        .layer-item {
+            display: flex; align-items: center; padding: 4px 8px;
+            font-size: 12px; border-bottom: 1px solid #333;
+        }
+        .layer-item:hover { background: #444; }
+        .layer-item input { margin-right: 10px; cursor: pointer; }
+        .label-text { cursor: pointer; flex-grow: 1; }
+        .is-label { color: #ffd700; font-weight: bold; } /* ラベル系を強調 */
+        .btn-group { display: flex; gap: 5px; margin-top: 10px; }
+        button { flex: 1; font-size: 11px; cursor: pointer; padding: 5px; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-<div id="list-container">
-    <h2>All Layer IDs in this Style</h2>
-    <div id="count-info" class="count">Loading layers...</div>
-    <div id="layer-list"></div>
+<div class="sidebar">
+    <div class="header">
+        <h3>レイヤー個別操作</h3>
+        <div class="btn-group">
+            <button onclick="toggleAll(true)">全てオン</button>
+            <button onclick="toggleAll(false)">全てオフ</button>
+        </div>
+    </div>
+    <div id="controls" class="layer-controls"></div>
 </div>
+<div id="map"></div>
 
 <script>
+    // ユーザーから提供された全レイヤーリスト
+    const allLayers = [
+        "aeroway_fill", "aeroway_runway", "aeroway_taxiway", "airport", "background", "boundary_2", "boundary_3", "boundary_disputed", "bridge_link", "bridge_link_casing", "bridge_major_rail", "bridge_major_rail_hatching", "bridge_motorway", "bridge_motorway_casing", "bridge_motorway_link", "bridge_motorway_link_casing", "bridge_path_pedestrian", "bridge_path_pedestrian_casing", "bridge_secondary_tertiary", "bridge_secondary_tertiary_casing", "bridge_service_track", "bridge_service_track_casing", "bridge_street", "bridge_street_casing", "bridge_transit_rail", "bridge_transit_rail_hatching", "bridge_trunk_primary", "bridge_trunk_primary_casing", "building", "building-3d", "highway-name-major", "highway-name-minor", "highway-name-path", "highway-shield-non-us", "highway-shield-us-interstate", "label_city", "label_city_capital", "label_country_1", "label_country_2", "label_country_3", "label_other", "label_state", "label_town", "label_village", "landcover_grass", "landcover_ice", "landcover_sand", "landcover_wetland", "landcover_wood", "landuse_cemetery", "landuse_hospital", "landuse_pitch", "landuse_residential", "landuse_school", "landuse_track", "natural_earth", "park", "park_outline", "poi_r1", "poi_r20", "poi_r7", "poi_transit", "road_area_pattern", "road_link", "road_link_casing", "road_major_rail", "road_major_rail_hatching", "road_minor", "road_minor_casing", "road_motorway", "road_motorway_casing", "road_motorway_link", "road_motorway_link_casing", "road_one_way_arrow", "road_one_way_arrow_opposite", "road_path_pedestrian", "road_secondary_tertiary", "road_secondary_tertiary_casing", "road_service_track", "road_service_track_casing", "road_shield_us", "road_transit_rail", "road_transit_rail_hatching", "road_trunk_primary", "road_trunk_primary_casing", "tunnel_link", "tunnel_link_casing", "tunnel_major_rail", "tunnel_major_rail_hatching", "tunnel_minor", "tunnel_motorway", "tunnel_motorway_casing", "tunnel_motorway_link", "tunnel_motorway_link_casing", "tunnel_path_pedestrian", "tunnel_secondary_tertiary", "tunnel_secondary_tertiary_casing", "tunnel_service_track", "tunnel_service_track_casing", "tunnel_street_casing", "tunnel_transit_rail", "tunnel_transit_rail_hatching", "tunnel_trunk_primary", "tunnel_trunk_primary_casing", "water", "water_name_line_label", "water_name_point_label", "waterway_line_label", "waterway_other", "waterway_river", "waterway_tunnel"
+    ];
+
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://tiles.openfreemap.org/styles/liberty',
-        center: [139.76, 35.68],
-        zoom: 10
+        center: [131.866, 37.243],
+        zoom: 12
     });
 
-    map.on('style.load', () => {
-        const layers = map.getStyle().layers;
-        const listDiv = document.getElementById('layer-list');
-        const countDiv = document.getElementById('count-info');
-
-        countDiv.innerText = `Total Layers Found: ${layers.length}`;
-
-        // 全レイヤーIDをアルファベット順にソートして表示
-        const layerIds = layers.map(l => l.id).sort();
+    map.on('load', () => {
+        const controls = document.getElementById('controls');
         
-        listDiv.innerHTML = layerIds.map(id => {
-            // 地名に関連しそうなものに色を付ける
-            const isLabel = /label|name|place|poi/i.test(id);
-            const color = isLabel ? 'color: #dcdcaa; font-weight: bold;' : '';
-            return `<div class="layer-id" style="${color}" onclick="console.log(map.getLayer('${id}'))">${id}</div>`;
-        }).join('');
+        allLayers.forEach(id => {
+            if (!map.getLayer(id)) return;
 
-        console.log("=== FULL LAYER LIST ===");
-        console.table(layers.map(l => ({id: l.id, type: l.type})));
+            const div = document.createElement('div');
+            div.className = 'layer-item';
+            
+            // 地名系を黄色く強調
+            const isLabel = /label|name|poi|shield/i.test(id);
+            const labelClass = isLabel ? 'is-label' : '';
+
+            div.innerHTML = `
+                <input type="checkbox" id="chk-${id}" checked>
+                <label class="label-text ${labelClass}" for="chk-${id}">${id}</label>
+            `;
+
+            const checkbox = div.querySelector('input');
+            checkbox.addEventListener('change', (e) => {
+                map.setLayoutProperty(id, 'visibility', e.target.checked ? 'visible' : 'none');
+            });
+
+            controls.appendChild(div);
+        });
     });
+
+    function toggleAll(visible) {
+        allLayers.forEach(id => {
+            if (map.getLayer(id)) {
+                map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+                const chk = document.getElementById(`chk-${id}`);
+                if (chk) chk.checked = visible;
+            }
+        });
+    }
 </script>
 </body>
 </html>
